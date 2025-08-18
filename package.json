@@ -1,0 +1,30 @@
+{
+  "name": "heygen-expo-pilot",
+  "private": true,
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "server": "node server/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "expo": "^53.0.20",
+    "expo-status-bar": "~2.2.3",
+    "express": "^4.19.2",
+    "node-fetch": "^2.7.0",
+    "react": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-webview": "13.13.5"
+  },
+  "devDependencies": {
+    "@react-native-community/cli": "^20.0.0",
+    "@react-native-community/cli-platform-android": "^20.0.0",
+    "@react-native-community/cli-platform-ios": "^20.0.0",
+    "@react-native-community/cli-server-api": "^20.0.0"
+  }
+}
