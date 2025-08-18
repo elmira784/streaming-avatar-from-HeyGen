@@ -20,18 +20,22 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "HeyGen interaktif avatarlarla konuşmak için mikrofon erişimi gereklidir."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.heygen-expo-pilot"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["RECORD_AUDIO", "INTERNET"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET"
+      ]
     },
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
     }
   }
-} 
+}

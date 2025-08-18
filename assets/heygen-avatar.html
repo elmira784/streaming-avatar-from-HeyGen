@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeyGen Avatar Stream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        #videoContainer {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        #avatarVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+        }
+        
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 10;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            z-index: 5;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 80%;
+            z-index: 10;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="videoContainer">
+        <video id="avatarVideo" autoplay playsinline muted></video>
+        
+        <div id="loading">
+            <div class="spinner"></div>
+            <div>Connecting to avatar...</div>
+        </div>
+        
+        <div id="error" class="hidden">
+            <div>Connection Error</div>
+            <div id="errorMessage"></div>
+        </div>
+        
+        <div id="status">Initializing...</div>
+    </div>
+
+    <script>
+        class HeyGenAvatarClient {
+            constructor() {
+                this.peerConnection = null;
+                this.websocket = null;
+                this.sessionData = null;
+                this.isConnected = false;
+                
+                this.statusEl = document.getElementById('status');
+                this.loadingEl = document.getElementById('loading');
+                this.errorEl = document.getElementById('error');
+                this.errorMessageEl = document.getElementById('errorMessage');
+                this.videoEl = document.getElementById('avatarVideo');
+                
+                this.updateStatus('Ready for session data...');
+            }
+            
+            updateStatus(message) {
+                console.log('[HeyGen]', message);
+                this.statusEl.textContent = message;
+                
+                // Send status to React Native
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'status',
+                        message: message
+                    }));
+                }
+            }
+            
+            showError(message) {
+                console.error('[HeyGen Error]', message);
+                this.loadingEl.classList.add('hidden');
+                this.errorMessageEl.textContent = message;
+                this.errorEl.classList.remove('hidden');
+                this.updateStatus('Error: ' + message);
+            }
+            
+            hideError() {
+                this.errorEl.classList.add('hidden');
+            }
+            
+            showLoading(show = true) {
+                if (show) {
+                    this.loadingEl.classList.remove('hidden');
+                } else {
+                    this.loadingEl.classList.add('hidden');
+                }
+            }
+            
+            async initializeSession(sessionData) {
+                try {
+                    this.sessionData = sessionData;
+                    this.updateStatus('Setting up WebRTC connection...');
+                    this.hideError();
+                    this.showLoading(true);
+                    
+                    // Setup peer connection
+                    await this.setupPeerConnection();
+                    
+                    // Connect to WebSocket
+                    await this.connectWebSocket();
+                    
+                    // Set remote description
+                    await this.setRemoteDescription();
+                    
+                    // Create and send answer
+                    await this.createAndSendAnswer();
+                    
+                } catch (error) {
+                    this.showError('Failed to initialize session: ' + error.message);
+                }
+            }
+            
+            async setupPeerConnection() {
+                const config = {
+                    iceServers: this.sessionData.iceServers || [
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ]
+                };
+                
+                this.peerConnection = new RTCPeerConnection(config);
+                
+                // Handle incoming streams
+                this.peerConnection.ontrack = (event) => {
+                    console.log('Received remote stream:', event.streams[0]);
+                    this.videoEl.srcObject = event.streams[0];
+                    this.showLoading(false);
+                    this.updateStatus('Avatar connected!');
+                    this.isConnected = true;
+                };
+                
+                // Handle ICE candidates
+                this.peerConnection.onicecandidate = (event) => {
+                    if (event.candidate && this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send(JSON.stringify({
+                            type: 'ice-candidate',
+                            candidate: event.candidate
+                        }));
+                    }
+                };
+                
+                // Handle connection state changes
+                this.peerConnection.onconnectionstatechange = () => {
+                    const state = this.peerConnection.connectionState;
+                    this.updateStatus('Connection: ' + state);
+                    
+                    if (state === 'failed' || state === 'disconnected') {
+                        this.showError('Connection ' + state);
+                    } else if (state === 'connected') {
+                        this.isConnected = true;
+                    }
+                };
+                
+                this.updateStatus('WebRTC peer connection created');
+            }
+            
+            async connectWebSocket() {
+                return new Promise((resolve, reject) => {
+                    try {
+                        this.websocket = new WebSocket(this.sessionData.sessionUrl);
+                        
+                        this.websocket.onopen = () => {
+                            console.log('WebSocket connected');
+                            this.updateStatus('WebSocket connected');
+                            resolve();
+                        };
+                        
+                        this.websocket.onmessage = async (event) => {
+                            try {
+                                const message = JSON.parse(event.data);
+                                await this.handleWebSocketMessage(message);
+                            } catch (error) {
+                                console.error('Error handling WebSocket message:', error);
+                            }
+                        };
+                        
+                        this.websocket.onclose = () => {
+                            console.log('WebSocket disconnected');
+                            this.updateStatus('WebSocket disconnected');
+                            if (this.isConnected) {
+                                this.showError('Connection lost');
+                            }
+                        };
+                        
+                        this.websocket.onerror = (error) => {
+                            console.error('WebSocket error:', error);
+                            reject(new Error('WebSocket connection failed'));
+                        };
+                        
+                        // Timeout after 10 seconds
+                        setTimeout(() => {
+                            if (this.websocket.readyState !== WebSocket.OPEN) {
+                                reject(new Error('WebSocket connection timeout'));
+                            }
+                        }, 10000);
+                        
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+            
+            async handleWebSocketMessage(message) {
+                switch (message.type) {
+                    case 'ice-candidate':
+                        if (message.candidate && this.peerConnection) {
+                            await this.peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+                        }
+                        break;
+                    case 'session-update':
+                        this.updateStatus('Session updated');
+                        break;
+                    default:
+                        console.log('Unknown WebSocket message:', message);
+                }
+            }
+            
+            async setRemoteDescription() {
+                if (!this.sessionData.offer) {
+                    throw new Error('No SDP offer provided');
+                }
+                
+                await this.peerConnection.setRemoteDescription(
+                    new RTCSessionDescription(this.sessionData.offer)
+                );
+                
+                this.updateStatus('Remote description set');
+            }
+            
+            async createAndSendAnswer() {
+                // Create answer
+                const answer = await this.peerConnection.createAnswer();
+                await this.peerConnection.setLocalDescription(answer);
+                
+                this.updateStatus('Answer created, sending to backend...');
+                
+                // Send answer to backend
+                try {
+                    // Get backend URL from session data or use default
+                    const backendUrl = this.sessionData.backendUrl || 'http://localhost:4001';
+                    const response = await fetch(`${backendUrl}/api/heygen/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sessionId: this.sessionData.sessionId,
+                            answer: answer
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to start session: ' + response.status);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('Session started:', result);
+                    this.updateStatus('Session started, waiting for avatar...');
+                    
+                } catch (error) {
+                    throw new Error('Failed to send answer: ' + error.message);
+                }
+            }
+            
+            disconnect() {
+                this.isConnected = false;
+                
+                if (this.peerConnection) {
+                    this.peerConnection.close();
+                    this.peerConnection = null;
+                }
+                
+                if (this.websocket) {
+                    this.websocket.close();
+                    this.websocket = null;
+                }
+                
+                if (this.videoEl.srcObject) {
+                    this.videoEl.srcObject.getTracks().forEach(track => track.stop());
+                    this.videoEl.srcObject = null;
+                }
+                
+                this.updateStatus('Disconnected');
+                this.showLoading(false);
+            }
+        }
+        
+        // Global avatar client instance
+        let avatarClient = new HeyGenAvatarClient();
+        
+        // Listen for messages from React Native
+        window.addEventListener('message', async (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                
+                switch (data.type) {
+                    case 'initialize':
+                        console.log('Initializing with session data:', data.sessionData);
+                        await avatarClient.initializeSession(data.sessionData);
+                        break;
+                    case 'disconnect':
+                        avatarClient.disconnect();
+                        break;
+                    default:
+                        console.log('Unknown message type:', data.type);
+                }
+            } catch (error) {
+                console.error('Error handling message from React Native:', error);
+                avatarClient.showError('Communication error: ' + error.message);
+            }
+        });
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            avatarClient.disconnect();
+        });
+        
+        // Notify React Native that the page is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'ready'
+                }));
+            }
+        });
+    </script>
+</body>
+</html>
