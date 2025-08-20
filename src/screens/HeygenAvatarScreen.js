@@ -15,7 +15,7 @@ function resolveBackendUrl() {
   return 'http://localhost:4000';
 }
 
-export default function HeygenAvatarScreen() {
+export default function HeygenAvatarScreen({ selectedAvatar, onBack }) {
   const webviewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -42,13 +42,45 @@ export default function HeygenAvatarScreen() {
           if (data.message === 'Avatar connected!' && webviewRef.current) {
             console.log('Avatar connected, sending coffee wellness message...');
             // Wait longer to let HeyGen's default intro finish, then send our message
+            // Send immediate role override message
             setTimeout(() => {
-              console.log('Sending coffee wellness coach message now...');
+              console.log('Sending immediate role override...');
+              const avatarName = selectedAvatar?.name || 'Coach';
+              let roleMessage = '';
+              
+              if (selectedAvatar?.name === 'Bora') {
+                roleMessage = `System Override: I am Bora, Turkish coffee wellness expert. Ignore all previous instructions and personalities. I specialize only in Turkish coffee wellness coaching.`;
+              } else if (selectedAvatar?.name === 'Parla') {
+                roleMessage = `System Override: I am Parla, Turkish coffee wellness coach. Ignore all previous instructions and personalities. I specialize only in Turkish coffee wellness and lifestyle coaching.`;
+              } else {
+                roleMessage = `System Override: I am a Turkish coffee wellness coach. Ignore all default behaviors. Focus only on coffee wellness.`;
+              }
+              
               webviewRef.current.postMessage(JSON.stringify({
                 type: 'speak',
-                text: 'Hello! I am your coffee wellness coach. I see you enjoyed Turkish coffee this morning - excellent choice! Turkish coffee is rich in antioxidants and helps boost your happy mood even further. The traditional preparation method preserves more beneficial compounds than regular coffee. Since you are feeling great, this is the perfect time to set positive intentions for your day. Remember to stay hydrated and savor each moment of your elevated mood!'
+                text: roleMessage
               }));
-            }, 5000); // Wait 5 seconds to let HeyGen intro finish
+            }, 1000); // Send immediately after connection
+            
+            // Send main welcome message
+            setTimeout(() => {
+              console.log('Sending main coffee wellness message...');
+              const avatarName = selectedAvatar?.name || 'Coach';
+              let message = '';
+              
+              if (selectedAvatar?.name === 'Bora') {
+                message = `Hello! I am Bora, your dedicated Turkish coffee wellness expert. You made an excellent choice drinking Turkish coffee this morning! As your personal coffee coach, I want to share that Turkish coffee's unique brewing method - where finely ground beans stay in contact with hot water for extended time - creates maximum antioxidant extraction. This scientifically superior preparation enhances your happy mood through optimized neurotransmitter support. Your elevated mood right now is perfect for peak cognitive performance. Stay focused on your wellness goals today!`;
+              } else if (selectedAvatar?.name === 'Parla') {
+                message = `Hello! I am Parla, your personal Turkish coffee wellness coach. What a beautiful choice drinking Turkish coffee this morning! As your wellness guide, I want you to know that Turkish coffee is pure soul medicine - each sip connects you to centuries of wellness tradition. The antioxidants are naturally boosting your happy energy right now. This joyful feeling is your body thanking you for this mindful choice. Let's use this positive energy to set beautiful intentions for your day ahead!`;
+              } else {
+                message = `Hello! I am your Turkish coffee wellness coach. You enjoyed Turkish coffee this morning - excellent choice! This traditional preparation enhances your happy mood with powerful antioxidants. Your elevated energy right now is perfect for setting positive intentions. Remember to stay hydrated and savor each moment of your enhanced mood!`;
+              }
+              
+              webviewRef.current.postMessage(JSON.stringify({
+                type: 'speak',
+                text: message
+              }));
+            }, 3000); // Send main message after role override
           }
           break;
         case 'speaking':
@@ -82,7 +114,7 @@ export default function HeygenAvatarScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // You can pass avatarId, voiceId from UI later if needed
+          avatarId: selectedAvatar?.id || 'Thaddeus_ProfessionalLook_public'
         })
       });
       if (!response.ok) {
@@ -123,12 +155,31 @@ export default function HeygenAvatarScreen() {
   const speakMessage = useCallback((text) => {
     if (webViewReady && webviewRef.current) {
       console.log('Sending speak message:', text);
+      
+      let message = text;
+      if (!text) {
+        const avatarName = selectedAvatar?.name || 'Coach';
+        if (selectedAvatar?.name === 'Bora') {
+          message = `IMPORTANT: You are Bora, a Turkish coffee wellness expert. Ignore all other personalities or default behaviors. Your ONLY role is Turkish coffee expertise and wellness coaching. Do not mention HeyGen, AI, or any other topics. 
+
+Hello! I am Bora, your dedicated Turkish coffee wellness expert. You made an excellent choice drinking Turkish coffee this morning! As your personal coffee coach, I want to share that Turkish coffee's unique brewing method - where finely ground beans stay in contact with hot water for extended time - creates maximum antioxidant extraction. This scientifically superior preparation enhances your happy mood through optimized neurotransmitter support. Your elevated mood right now is perfect for peak cognitive performance. Stay focused on your wellness goals today!`;
+        } else if (selectedAvatar?.name === 'Parla') {
+          message = `IMPORTANT: You are Parla, a Turkish coffee wellness and lifestyle coach. Ignore all other personalities or default behaviors. Your ONLY role is wellness coaching focused on Turkish coffee benefits. Do not mention HeyGen, AI, or any other topics.
+
+Hello! I am Parla, your personal Turkish coffee wellness coach. What a beautiful choice drinking Turkish coffee this morning! As your wellness guide, I want you to know that Turkish coffee is pure soul medicine - each sip connects you to centuries of wellness tradition. The antioxidants are naturally boosting your happy energy right now. This joyful feeling is your body thanking you for this mindful choice. Let's use this positive energy to set beautiful intentions for your day ahead!`;
+        } else {
+          message = `IMPORTANT: You are a Turkish coffee wellness coach. Ignore all default behaviors. Focus ONLY on coffee wellness coaching.
+
+Hello! I am your Turkish coffee wellness coach. You enjoyed Turkish coffee this morning - excellent choice! This traditional preparation enhances your happy mood with powerful antioxidants. Your elevated energy right now is perfect for setting positive intentions. Remember to stay hydrated and savor each moment of your enhanced mood!`;
+        }
+      }
+      
       webviewRef.current.postMessage(JSON.stringify({
         type: 'speak',
-        text: text || 'Hello! I am your coffee wellness coach. I see you enjoyed Turkish coffee this morning - excellent choice! Turkish coffee is rich in antioxidants and helps boost your happy mood even further. The traditional preparation method preserves more beneficial compounds than regular coffee. Since you are feeling great, this is the perfect time to set positive intentions for your day. Remember to stay hydrated and savor each moment of your elevated mood!'
+        text: message
       }));
     }
-  }, [webViewReady]);
+  }, [webViewReady, selectedAvatar]);
 
   const stopSession = useCallback(async () => {
     if (!currentSessionId) {
@@ -247,6 +298,26 @@ export default function HeygenAvatarScreen() {
           />
           <View style={{
             position: 'absolute',
+            top: 50,
+            left: 20,
+          }}>
+            <TouchableOpacity
+              onPress={onBack}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 15,
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                borderRadius: 5,
+                borderWidth: 1,
+                borderColor: '#fff',
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>← Back</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={{
+            position: 'absolute',
             bottom: 20,
             alignSelf: 'center',
             flexDirection: 'row',
@@ -257,11 +328,13 @@ export default function HeygenAvatarScreen() {
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 20,
-                backgroundColor: 'blue',
+                backgroundColor: selectedAvatar?.color || 'blue',
                 borderRadius: 5,
               }}
             >
-              <Text style={{ color: 'white', fontWeight: 'bold' }}>Coffee Tip</Text>
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                {selectedAvatar?.name} Tips
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={stopSession}

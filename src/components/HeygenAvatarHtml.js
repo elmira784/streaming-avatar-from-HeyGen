@@ -94,17 +94,6 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
     <div id="videoContainer">
         <video id="avatarVideo" autoplay playsinline controls></video>
         
-        <div id="loading">
-            <div class="spinner"></div>
-            <div>Connecting to avatar...</div>
-        </div>
-        
-        <div id="error" class="hidden">
-            <div>Connection Error</div>
-            <div id="errorMessage"></div>
-        </div>
-        
-        <div id="status">Initializing...</div>
     </div>
 
     <script>
@@ -115,18 +104,11 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                 this.sessionData = null;
                 this.isConnected = false;
                 
-                this.statusEl = document.getElementById('status');
-                this.loadingEl = document.getElementById('loading');
-                this.errorEl = document.getElementById('error');
-                this.errorMessageEl = document.getElementById('errorMessage');
                 this.videoEl = document.getElementById('avatarVideo');
-                
-                this.updateStatus('Ready for session data...');
             }
             
             updateStatus(message) {
                 console.log('[HeyGen]', message);
-                this.statusEl.textContent = message;
                 
                 // Send status to React Native
                 if (window.ReactNativeWebView) {
@@ -137,32 +119,10 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                 }
             }
             
-            showError(message) {
-                console.error('[HeyGen Error]', message);
-                this.loadingEl.classList.add('hidden');
-                this.errorMessageEl.textContent = message;
-                this.errorEl.classList.remove('hidden');
-                this.updateStatus('Error: ' + message);
-            }
-            
-            hideError() {
-                this.errorEl.classList.add('hidden');
-            }
-            
-            showLoading(show = true) {
-                if (show) {
-                    this.loadingEl.classList.remove('hidden');
-                } else {
-                    this.loadingEl.classList.add('hidden');
-                }
-            }
-            
             async initializeSession(sessionData) {
                 try {
                     this.sessionData = sessionData;
                     this.updateStatus('Setting up WebRTC connection...');
-                    this.hideError();
-                    this.showLoading(true);
                     
                     // Setup peer connection
                     await this.setupPeerConnection();
@@ -177,7 +137,7 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                     await this.createAndSendAnswer();
                     
                 } catch (error) {
-                    this.showError('Failed to initialize session: ' + error.message);
+                    console.error('Failed to initialize session:', error);
                 }
             }
             
@@ -202,19 +162,16 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                     // Try to play the video (may require user interaction)
                     this.videoEl.play().then(() => {
                         console.log('Video playback started');
-                        this.showLoading(false);
                         this.updateStatus('Avatar connected!');
                         this.isConnected = true;
                     }).catch((error) => {
                         console.log('Autoplay prevented, user interaction required:', error);
-                        this.showLoading(false);
-                        this.updateStatus('Avatar connected! Tap video to enable audio.');
+                        this.updateStatus('Avatar connected!');
                         this.isConnected = true;
                         
                         // Add click handler to enable audio
                         this.videoEl.addEventListener('click', () => {
                             this.videoEl.play();
-                            this.updateStatus('Avatar connected!');
                         });
                     });
                 };
@@ -232,11 +189,9 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                 // Handle connection state changes
                 this.peerConnection.onconnectionstatechange = () => {
                     const state = this.peerConnection.connectionState;
-                    this.updateStatus('Connection: ' + state);
+                    console.log('Connection state:', state);
                     
-                    if (state === 'failed' || state === 'disconnected') {
-                        this.showError('Connection ' + state);
-                    } else if (state === 'connected') {
+                    if (state === 'connected') {
                         this.isConnected = true;
                     }
                 };
@@ -266,10 +221,6 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                         
                         this.websocket.onclose = () => {
                             console.log('WebSocket disconnected');
-                            this.updateStatus('WebSocket disconnected');
-                            if (this.isConnected) {
-                                this.showError('Connection lost');
-                            }
                         };
                         
                         this.websocket.onerror = (error) => {
@@ -392,8 +343,6 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                     
                 } catch (error) {
                     console.error('Error making avatar speak:', error);
-                    this.updateStatus('Failed to make avatar speak');
-                    this.showError('TTS Error: ' + error.message);
                 }
             }
             
@@ -415,8 +364,7 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                     this.videoEl.srcObject = null;
                 }
                 
-                this.updateStatus('Disconnected');
-                this.showLoading(false);
+                console.log('Avatar disconnected');
             }
         }
         
@@ -447,7 +395,6 @@ export const HEYGEN_AVATAR_HTML = `<!DOCTYPE html>
                 }
             } catch (error) {
                 console.error('Error handling message from React Native:', error);
-                avatarClient.showError('Communication error: ' + error.message);
             }
         });
         

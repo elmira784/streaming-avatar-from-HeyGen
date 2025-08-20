@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run server:*)"
+      "Bash(npm run server:*)",
+      "Bash(npm start)",
+      "WebSearch",
+      "WebFetch(domain:docs.heygen.com)"
     ],
     "deny": [],
     "ask": []

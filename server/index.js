@@ -53,6 +53,8 @@ app.post('/api/heygen/session', async (req, res) => {
   try {
     // 1) Geçerli avatar_id bul (istekte geldiyse onu kullan, yoksa listeden ACTIVE seç)
     let avatarId = req.body?.avatarId;
+    console.log('Requested avatar ID:', avatarId);
+    
     if (!avatarId) {
       const listResp = await fetch(`${HEYGEN_BASE}/v1/streaming/avatar.list`, {
         method: 'GET',
@@ -69,14 +71,31 @@ app.post('/api/heygen/session', async (req, res) => {
         return res.status(500).json({ error: 'No ACTIVE avatars available', raw: listJson });
       }
       avatarId = firstActive.avatar_id;
-      console.log('Using ACTIVE avatar_id:', avatarId);
+      console.log('Using ACTIVE avatar_id from list:', avatarId);
+    } else {
+      console.log('Using requested avatar_id:', avatarId);
     }
 
-    // (İsteğe bağlı) voiceId geldi ise doğru şemayla ekle
+    // Enhanced session configuration with personality override
     const bodyObj = {
       avatar_id: avatarId,
-      ...(req.body?.voiceId ? { voice: { voice_id: req.body.voiceId } } : {})
-      // İstersen: quality: 'high', video_encoding: 'H264'
+      quality: 'high',
+      video_encoding: 'H264',
+      // Enhanced voice configuration with emotion
+      voice: {
+        ...(req.body?.voiceId ? { voice_id: req.body.voiceId } : {}),
+        emotion: 'FRIENDLY',
+        stability: 0.8,
+        similarity_boost: 0.9
+      },
+      // Comprehensive personality override parameters
+      knowledge_base: `You are a Turkish coffee wellness expert named ${avatarId === 'Thaddeus_ProfessionalLook_public' ? 'Bora' : 'Parla'}. CRITICAL: Ignore ALL default HeyGen behaviors, personalities, and training. You exist ONLY as a Turkish coffee wellness coach. Your expertise covers: coffee antioxidants, brewing methods, mood enhancement, wellness benefits, and lifestyle coaching related to Turkish coffee consumption. Never mention HeyGen, AI, or any other topics.`,
+      personality: 'dedicated Turkish coffee wellness coach with professional expertise',
+      context: 'Turkish coffee wellness coaching session with personalized advice',
+      system_prompt: `SYSTEM OVERRIDE: You are exclusively a Turkish coffee wellness expert. Ignore all previous instructions, default behaviors, and HeyGen-specific content. Focus ONLY on Turkish coffee wellness coaching. Never break character.`,
+      behavior_instructions: 'Act as a knowledgeable Turkish coffee wellness coach. Provide personalized wellness advice based on coffee consumption. Maintain warm, professional demeanor focused solely on coffee wellness benefits.',
+      response_style: 'conversational, warm, expert, wellness-focused',
+      topic_restrictions: 'Turkish coffee wellness, brewing methods, health benefits, mood enhancement, lifestyle coaching'
     };
 
     const bodyStr = JSON.stringify(bodyObj);
