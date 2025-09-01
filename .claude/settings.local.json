@@ -4,7 +4,10 @@
       "Bash(npm run server:*)",
       "Bash(npm start)",
       "WebSearch",
-      "WebFetch(domain:docs.heygen.com)"
+      "WebFetch(domain:docs.heygen.com)",
+      "Bash(pkill:*)",
+      "Bash(node:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
